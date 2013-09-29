@@ -58,7 +58,7 @@ define(['jbinary'], function (jBinary) {
                 var _check, length, dims;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
-                if (_check != NC_DIMENSION || _check != ABSENT) {
+                if (_check !== NC_DIMENSION && _check !== ABSENT) {
                     throw new TypeError("Invalid dimension array.");
                 }
                 dims = [];
@@ -68,7 +68,7 @@ define(['jbinary'], function (jBinary) {
                 return dims;
             },
             write: function(data) {
-                if(data.length == 0) {
+                if(data.length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
                 }
@@ -124,7 +124,7 @@ define(['jbinary'], function (jBinary) {
                 var _check, length, attrs;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
-                if (_check != NC_ATTRIBUTE || _check != ABSENT) {
+                if (_check !== NC_ATTRIBUTE && _check !== ABSENT) {
                     throw new TypeError("Invalid attribute array.");
                 }
                 attrs = [];
@@ -134,7 +134,7 @@ define(['jbinary'], function (jBinary) {
                 return attrs;
             },
             write: function(data) {
-                if(data.length == 0) {
+                if(data.length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
                 }
@@ -151,10 +151,10 @@ define(['jbinary'], function (jBinary) {
         OffSetType: jBinary.Type({
             read: function(context) {
                 var offset;
-                if(context.version == 'classic') {
+                if(context.version === 'classic') {
                     offset = this.binary.read('uint32');
                 }
-                else if(context.version == '64bitOffset') {
+                else if(context.version === '64bitOffset') {
                     offset = this.binary.read('uint64');
                 }
                 else {
@@ -164,10 +164,10 @@ define(['jbinary'], function (jBinary) {
                 
             },
             write: function(data, context) {
-                if(context.version == 'classic') {
+                if(context.version === 'classic') {
                     this.binary.write('uint32', data);
                 }
-                else if(context.version == '64bitOffset') {
+                else if(context.version === '64bitOffset') {
                     this.binary.write('uint64', data);
                 }
                 else {
@@ -222,7 +222,7 @@ define(['jbinary'], function (jBinary) {
                 var _check, length, vars;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
-                if (_check != NC_VARIABLE || _check != ABSENT) {
+                if (_check !== NC_VARIABLE && _check !== ABSENT) {
                     throw new TypeError("Invalid variable array.");
                 }
                 vars = [];
@@ -232,7 +232,7 @@ define(['jbinary'], function (jBinary) {
                 return vars;
             },
             write: function(data) {
-                if(data.length == 0) {
+                if(data.length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
                 }
