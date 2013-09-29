@@ -16,14 +16,13 @@ define(['jbinary'], function (jBinary) {
     var NC_VARIABLE  = 11;
     var NC_ATTRIBUTE = 12;
     
-    var typeMap = {
-            NC_BYTE:   'int8',
-            NC_CHAR:   'char',
-            NC_SHORT:  'int16',
-            NC_INT:    'int32',
-            NC_FLOAT:  'float32',
-            NC_DOUBLE: 'float64'
-    };
+    var typeMap = {};
+    typeMap[NC_BYTE]   = 'int8';
+    typeMap[NC_CHAR]   = 'char';
+    typeMap[NC_SHORT]  = 'int16';
+    typeMap[NC_INT]    = 'int32';
+    typeMap[NC_FLOAT]  = 'float32';
+    typeMap[NC_DOUBLE] = 'float64';
     
     var invTypeMap = {};
     for(key in typeMap) {
@@ -101,7 +100,8 @@ define(['jbinary'], function (jBinary) {
         // data type mapping from netcdf specification
         DataType: jBinary.Type({
             read: function() {
-                var xtype = typeMap[this.binary.read('uint32')];
+                var rtype = this.binary.read('uint32');
+                var xtype = typeMap[rtype];
                 if( typeof(xtype) !== 'string') {
                     throw new TypeError("Invalid data type.");
                 }
