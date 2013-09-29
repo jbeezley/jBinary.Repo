@@ -18,5 +18,9 @@ define({
 	tar: {
 		extensions: ['tar'],
 		mimeTypes: ['application/tar', 'application/x-tar', 'applicaton/x-gtar', 'multipart/x-tar']
-	}
+	},
+    netcdf3: {
+        extensions: ['nc'],
+        mimeTypes: ['application/x-netcdf']
+    }
 });
