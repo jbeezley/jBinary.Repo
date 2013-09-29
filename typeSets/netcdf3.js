@@ -258,12 +258,12 @@ define(['jbinary'], function (jBinary) {
         numrecs: 'uint32',
         
         Header: {
-            magic: magic,
-            version: version,
-            numrecs: numrecs,
-            dims: DimArray,
-            attrs: AttrArray,
-            vars: VarArray 
+            magic: 'magic',
+            version: 'version',
+            numrecs: 'numrecs',
+            dims: 'DimArray',
+            attrs: 'AttrArray',
+            vars: 'VarArray'
         }
     };
 });
