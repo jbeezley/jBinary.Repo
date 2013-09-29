@@ -16,6 +16,22 @@ define(['jbinary'], function (jBinary) {
     var NC_VARIABLE  = 11;
     var NC_ATTRIBUTE = 12;
     
+    var typeMap = {
+            NC_BYTE:   'int8',
+            NC_CHAR:   'char',
+            NC_SHORT:  'int16',
+            NC_INT:    'int32',
+            NC_FLOAT:  'float32',
+            NC_DOUBLE: 'float64'
+    };
+    
+    var invTypeMap = {};
+    for(key in typeMap) {
+        if(typeMap.hasOwnProperty(key)) {
+            invTypeMap[typeMap[key]] = (+key);
+        }
+    }
+    
     return {
         'jBinary.all': 'Header',
         'jBinary.mimeType': 'application/x-netcdf',
@@ -83,14 +99,22 @@ define(['jbinary'], function (jBinary) {
         }),
         
         // data type mapping from netcdf specification
-        DataType: ['enum', 'uint32', {
-            NC_BYTE:   'int8',
-            NC_CHAR:   'char',
-            NC_SHORT:  'int16',
-            NC_INT:    'int32',
-            NC_FLOAT:  'float32',
-            NC_DOUBLE: 'float64'
-        }],
+        DataType: jBinary.Type({
+            read: function() {
+                var xtype = typeMap[this.binary.read('uint32')];
+                if( typeof(xtype) !== 'string') {
+                    throw new TypeError("Invalid data type.");
+                }
+                return xtype;
+            },
+            write: function(data) {
+                var xtype = invTypeMap[data];
+                if( typeof(xtype) !== 'number' ) {
+                    throw new TypeError("Invalid data type.");
+                }
+                this.binary.write('uint32', xtype);
+            }
+        }),
         
         // attribute type
         // format: [NcString name, Datatype dtype, uint32 length, dtype values[length]]
