@@ -164,8 +164,8 @@ define(['jbinary'], function (jBinary) {
                     dimorder[i] = name;
                     dims[name] = dim.length;
                 }
-                dims.getIDim = function (iDim) {return dimorder[iDim];}
-                dims.getIndex = function (name) {return dimorder.indexOf(name);}
+                dims._getIDim = function (iDim) {return dimorder[iDim];}
+                dims._getIndex = function (name) {return dimorder.indexOf(name);}
                 return dims;
             },
             write: function(data) {
@@ -178,7 +178,7 @@ define(['jbinary'], function (jBinary) {
                     this.binary.write('uint32', NC_DIMENSION);
                     this.binary.write('uint32', data.length);
                     for( var i = 0; i<data.length; i++) {
-                        name = data.getIDim(i);
+                        name = data._getIDim(i);
                         length = data[name];
                         dim = {
                             length: length,
@@ -328,7 +328,7 @@ define(['jbinary'], function (jBinary) {
                 dims = [];
                 for(var i=0; i<nDims; i++) {
                     dimid = this.binary.read('uint32');
-                    dims[i] = context.dimensions.getIDim(dimid);
+                    dims[i] = context.dimensions._getIDim(dimid);
                 }
                 attrs = this.binary.read('AttrArray');
                 xtype = this.binary.read('DataType');
@@ -355,7 +355,7 @@ define(['jbinary'], function (jBinary) {
                 this.binary.write('NcString', data.name);
                 this.binary.write('uint32', data.dimensions.length);
                 for(var i=0; i<data.dimensions.length; i++) {
-                    this.binary.write('uint32', context.diminsions.getIndex(data.dimensions[i]));
+                    this.binary.write('uint32', context.diminsions._getIndex(data.dimensions[i]));
                 }
                 this.binary.write('AttrArray', data.attributes);
                 this.binary.write('DataType', data.dtype);
