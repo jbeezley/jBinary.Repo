@@ -1,5 +1,3 @@
-//require('bower_components/jbinary/src/jbinary')
-
 // javascript implementation of netcdf3 format described here:
 // http://www.unidata.ucar.edu/software/netcdf/docs/netcdf/File-Format-Specification.html
 
