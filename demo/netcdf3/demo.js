@@ -1,3 +1,3 @@
 define({
-		files: ['empty.nc']
+		files: ['empty.nc', 'wrf.nc']
 });
