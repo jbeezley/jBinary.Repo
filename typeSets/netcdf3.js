@@ -14,6 +14,7 @@ define(['jbinary'], function (jBinary) {
     var NC_VARIABLE  = 11;
     var NC_ATTRIBUTE = 12;
     
+    // type mapping from netcdf definition to jbinary types
     var typeMap = {};
     typeMap[NC_BYTE]   = 'int8';
     typeMap[NC_CHAR]   = 'char';
@@ -22,6 +23,7 @@ define(['jbinary'], function (jBinary) {
     typeMap[NC_FLOAT]  = 'float32';
     typeMap[NC_DOUBLE] = 'float64';
     
+    // inverse mapping of the above
     var invTypeMap = {};
     for(key in typeMap) {
         if(typeMap.hasOwnProperty(key)) {
@@ -68,19 +70,26 @@ define(['jbinary'], function (jBinary) {
         // format: [uint32 0 | 10, uint32 length, DimType dims[length]]
         DimArray: jBinary.Type({
             read: function() {
-                var _check, length, dims;
+                var _check, length, dims, dim, name;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
                 if (_check !== NC_DIMENSION && _check !== ABSENT) {
                     throw new TypeError("Invalid dimension array.");
                 }
-                dims = [];
+                dims = {};
+                dimorder = []; // we need to store the order of dimensions
                 for(var i=0; i<length; i++) {
-                    dims[i] = this.binary.read('DimType');
+                    dim = this.binary.read('DimType');
+                    name = dim.name;
+                    dimorder[i] = name;
+                    dims[name] = dim.length;
                 }
+                dims.getIDim = function (iDim) {return dimorder[iDim];}
+                dims.getIndex = function (name) {return dimorder.indexOf(name);}
                 return dims;
             },
             write: function(data) {
+                var name;
                 if(data.length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
@@ -88,8 +97,14 @@ define(['jbinary'], function (jBinary) {
                 else {
                     this.binary.write('uint32', NC_DIMENSION);
                     this.binary.write('uint32', data.length);
-                    for(var i=0; i<data.length; i++) {
-                        this.binary.write('DimType', data[i]);
+                    for( var i = 0; i<data.length; i++) {
+                        name = data.getIDim(i);
+                        length = data[name];
+                        dim = {
+                            length: length,
+                            name: name
+                        };
+                        this.binary.write('DimType', dim);
                     }
                 }
             }
@@ -121,20 +136,31 @@ define(['jbinary'], function (jBinary) {
                 var name = this.binary.read('NcString');
                 var dtype = this.binary.read('DataType');
                 var length = this.binary.read('uint32');
-                var values = this.binary.read(['array', dtype, length]);
+                var value = this.binary.read(['array', dtype, length]);
+                if (dtype === 'char') {
+                    value = value.join('');  // turn character array into a string
+                }
+                else if (length === 1) {
+                    value = value[0]; // turn array of length 1 into a single value
+                }
                 this.binary.read('Padding');
                 return {
                     name: name,
                     dtype: dtype,
                     length: length,
-                    values: values
+                    value: value
                 };
             },
             write: function(data) {
                 this.binary.write('NcString', data.name);
                 this.binary.write('DataType', data.dtype);
                 this.binary.write('uint32', data.length);
-                this.binary.write(['array', data.dtype, data.length], data.values);
+                if (data.length === 1) {
+                    this.binary.write(data.dtype, data.value);
+                }
+                else {
+                    this.binary.write(['array', data.dtype, data.length], data.value);
+                }
                 this.binary.write('Padding');
             }
         }),
@@ -143,28 +169,40 @@ define(['jbinary'], function (jBinary) {
         // format: [uint32 0 | 12, uint32 length, AttrType attrs[length]]
         AttrArray: jBinary.Type({
             read: function() {
-                var _check, length, attrs;
+                var _check, length, attrs, attr, name;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
                 if (_check !== NC_ATTRIBUTE && _check !== ABSENT) {
                     throw new TypeError("Invalid attribute array.");
                 }
-                attrs = [];
+                attrs = {};
                 for(var i=0; i<length; i++) {
-                    attrs[i] = this.binary.read('AttrType');
+                    attr = this.binary.read('AttrType');
+                    name = attr.name;
+                    delete attr.name;
+                    attrs[name] = attr;
                 }
                 return attrs;
             },
             write: function(data) {
-                if(data.length === 0) {
+                var attr, length=0;
+                for(var key in data) {
+                    if (data.hasOwnProperty(key)) length += 1;
+                }
+                if(length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
                 }
                 else {
                     this.binary.write('uint32', NC_ATTRIBUTE);
-                    this.binary.write('uint32', data.length);
-                    for(var i=0; i<data.length; i++) {
-                        this.binary.write('AttrType', data[i]);
+                    this.binary.write('uint32', length);
+                    for(var name in data) {
+                        if (data.hasOwnProperty(name)) {
+                            attr = data[name];
+                            attr.name = name;
+                            this.binary.write('AttrType', attr);
+                            delete attr.name;
+                        }
                     }
                 }
             }
@@ -203,32 +241,41 @@ define(['jbinary'], function (jBinary) {
         //          AttrArray attrs, DataType xtype, uint32 vsize,
         //          OffSetType offset]
         VarType: jBinary.Type({
-            read: function() {
-                var name, nDims, dimids, attrs, xtype, vsize, offset;
+            read: function(context) {
+                var name, nDims, dimid, attrs, xtype, vsize, offset, dims, shape;
                 name = this.binary.read('NcString');
                 nDims = this.binary.read('uint32');
-                dimids = [];
+                dims = [];
                 for(var i=0; i<nDims; i++) {
-                    dimids[i] = this.binary.read('uint32');
+                    dimid = this.binary.read('uint32');
+                    dims[i] = context.dims.getIDim(dimid);
                 }
                 attrs = this.binary.read('AttrArray');
                 xtype = this.binary.read('DataType');
                 vsize = this.binary.read('uint32');
                 offset = this.binary.read('OffSetType');
+                shape = function() {
+                    var n = [];
+                    for(var i=0; i<dims.length; i++) {
+                        n[i] = context.dims[dims[i]];
+                    }
+                    return n;
+                }
                 return {
                     name: name,
-                    dimids: dimids,
+                    dims: dims,
                     attrs: attrs,
                     xtype: xtype,
                     vsize: vsize,
-                    offset: offset
+                    offset: offset,
+                    shape: shape
                 };
             },
-            write: function(data) {
+            write: function(data, context) {
                 this.binary.write('NcString', data.name);
-                this.binary.write('uint32', data.dimids.length);
-                for(var i=0; i<data.dimids.length; i++) {
-                    this.binary.write('uint32', data.dimids[i]);
+                this.binary.write('uint32', data.dims.length);
+                for(var i=0; i<data.dims.length; i++) {
+                    this.binary.write('uint32', context.dims.getIndex(data.dims[i]));
                 }
                 this.binary.write('AttrArray', data.attrs);
                 this.binary.write('DataType', data.xtype);
@@ -241,28 +288,40 @@ define(['jbinary'], function (jBinary) {
         // format: [uint32 0 | 11, uint32 length, VarType vars[length]]
         VarArray: jBinary.Type({
             read: function() {
-                var _check, length, vars;
+                var _check, length, vars, v, name;
                 _check = this.binary.read('uint32');
                 length = this.binary.read('uint32');
                 if (_check !== NC_VARIABLE && _check !== ABSENT) {
                     throw new TypeError("Invalid variable array.");
                 }
-                vars = [];
+                vars = {};
                 for(var i=0; i<length; i++) {
-                    vars[i] = this.binary.read('VarType');
+                    v = this.binary.read('VarType');
+                    name = v.name;
+                    delete v.name;
+                    vars[name] = v;
                 }
                 return vars;
             },
             write: function(data) {
-                if(data.length === 0) {
+                var length = 0, v;
+                for(var key in data) {
+                    if (data.hasOwnProperty(key)) length += 1;
+                }
+                if(length === 0) {
                     this.binary.write('uint32', ABSENT);
                     this.binary.write('uint32', 0);
                 }
                 else {
                     this.binary.write('uint32', NC_VARIABLE);
                     this.binary.write('uint32', data.length);
-                    for(var i=0; i<data.length; i++) {
-                        this.binary.write('VarType', data[i]);
+                    for(var name in data) {
+                        if (data.hasOwnProperty(name)) {
+                            v = data[name];
+                            v.name = name;
+                            this.binary.write('VarType', v);
+                            delete v.name;
+                        }
                     }
                 }
             }
