@@ -1,7 +1,7 @@
 // javascript implementation of netcdf3 format described here:
 // http://www.unidata.ucar.edu/software/netcdf/docs/netcdf/File-Format-Specification.html
 
-/*
+/*!
  * The MIT License (MIT)
  * Copyright © 2013 Jonathan Beezley, jon.beezley@gmail.com
  * 
@@ -23,6 +23,63 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+// The file read method returns an object with the following structure, which
+// is largely compatible with the netCDF4 python module where possible.
+/*
+File object:
+{
+    // classic or 64 bit format
+    version: "classic" | "64bitOffset",
+    
+    // number of record dimensions
+    numrecs: <uint32>,
+    
+    // dimension mapping
+    dimensions: { <string> : <uint32>, ... },
+    
+    // global attribute mapping
+    attributes: { <string> : <attrType>, ... },
+    
+    // variable mapping
+    variables: { <string> : <varType>, ... }
+}
+
+attrType:
+{
+    // jBinary data type
+    dtype : <string>,
+    
+    // number of elements of the attribute
+    // -or- number of characters in the string
+    length: <uint32>,
+    
+    // array of values of the attribute
+    // -or- the value of the attribute if length == 1
+    // -or- a string representing a character array attribute
+    value: <dtype>[length] | <dtype> | <string>
+}
+
+varType:
+{
+    // array of dimension names describing the variables shape
+    dimensions: [ <string>, ... ],
+    
+    // variable attribute mapping
+    attributes: { <string> : <attrType> },
+    
+    // jBinary data type
+    dtype: <string>,
+    
+    // function to inquire the shape of the variable
+    shape: function() { return [<uint32>, ... ]; }
+}
+*/
+//*** Other methods and variables exist, but should be considered "private"
+//*** from the user's perspective.
+//
+//*** Write support is untested and in development... 
+
 
 define(['jbinary'], function (jBinary) {
     // Constants defined by the netcdf specification:
@@ -271,7 +328,7 @@ define(['jbinary'], function (jBinary) {
                 dims = [];
                 for(var i=0; i<nDims; i++) {
                     dimid = this.binary.read('uint32');
-                    dims[i] = context.dims.getIDim(dimid);
+                    dims[i] = context.dimensions.getIDim(dimid);
                 }
                 attrs = this.binary.read('AttrArray');
                 xtype = this.binary.read('DataType');
@@ -286,24 +343,24 @@ define(['jbinary'], function (jBinary) {
                 }
                 return {
                     name: name,
-                    dims: dims,
-                    attrs: attrs,
-                    xtype: xtype,
-                    vsize: vsize,
-                    offset: offset,
+                    dimensions: dims,
+                    attributes: attrs,
+                    dtype: xtype,
+                    _vsize: vsize,
+                    _offset: offset,
                     shape: shape
                 };
             },
             write: function(data, context) {
                 this.binary.write('NcString', data.name);
-                this.binary.write('uint32', data.dims.length);
-                for(var i=0; i<data.dims.length; i++) {
-                    this.binary.write('uint32', context.dims.getIndex(data.dims[i]));
+                this.binary.write('uint32', data.dimensions.length);
+                for(var i=0; i<data.dimensions.length; i++) {
+                    this.binary.write('uint32', context.diminsions.getIndex(data.dimensions[i]));
                 }
-                this.binary.write('AttrArray', data.attrs);
-                this.binary.write('DataType', data.xtype);
-                this.binary.write('uint32', data.vsize);
-                this.binary.write('OffSetType', data.offset);
+                this.binary.write('AttrArray', data.attributes);
+                this.binary.write('DataType', data.dtype);
+                this.binary.write('uint32', data._vsize);
+                this.binary.write('OffSetType', data._offset);
             }
         }),
         
@@ -362,12 +419,12 @@ define(['jbinary'], function (jBinary) {
         numrecs: 'uint32',
         
         Header: {
-            magic: 'magic',
+            _magic: 'magic',
             version: 'version',
             numrecs: 'numrecs',
-            dims: 'DimArray',
-            attrs: 'AttrArray',
-            vars: 'VarArray'
+            dimensions: 'DimArray',
+            attributes: 'AttrArray',
+            variables: 'VarArray'
         }
     };
 });
