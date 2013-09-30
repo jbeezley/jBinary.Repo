@@ -164,8 +164,8 @@ define(['jbinary'], function (jBinary) {
                     dimorder[i] = name;
                     dims[name] = dim.length;
                 }
-                dims._getIDim = function (iDim) {return dimorder[iDim];}
-                dims._getIndex = function (name) {return dimorder.indexOf(name);}
+                dims._getIDim = function (iDim) {return dimorder[iDim];};
+                dims._getIndex = function (name) {return dimorder.indexOf(name);};
                 return dims;
             },
             write: function(data) {
@@ -339,8 +339,11 @@ define(['jbinary'], function (jBinary) {
                     for(var i=0; i<dims.length; i++) {
                         n[i] = context.dims[dims[i]];
                     }
+                    if (n[0] === 0) {
+                        n[0] = context.numrecs;
+                    }
                     return n;
-                }
+                };
                 return {
                     name: name,
                     dimensions: dims,
