@@ -81,7 +81,7 @@ varType:
 //*** Write support is untested and in development... 
 
 
-define(['jbinary'], function (jBinary) {
+define(['jbinary', 'jdataview'], function (jBinary, JDataView) {
     'use strict';
 
     // Constants defined by the netcdf specification:
@@ -97,7 +97,8 @@ define(['jbinary'], function (jBinary) {
         NC_ATTRIBUTE = 12,
         typeMap = {},
         invTypeMap = {},
-        typekey;
+        typekey,
+        sizeMap = {};
 
     // type mapping from netcdf definition to jbinary types
     typeMap[NC_BYTE]   = 'int8';
@@ -106,6 +107,14 @@ define(['jbinary'], function (jBinary) {
     typeMap[NC_INT]    = 'int32';
     typeMap[NC_FLOAT]  = 'float32';
     typeMap[NC_DOUBLE] = 'float64';
+
+    // sizes of basic types in bytes
+    sizeMap.int8    = 1;
+    sizeMap.char    = 1;
+    sizeMap.int16   = 2;
+    sizeMap.int32   = 4;
+    sizeMap.float32 = 4;
+    sizeMap.float64 = 8;
 
     // inverse mapping of the above
     for (typekey in typeMap) {
@@ -321,7 +330,8 @@ define(['jbinary'], function (jBinary) {
         //          OffSetType offset]
         VarType: jBinary.Type({
             read: function (context) {
-                var name, nDims, dimid, attrs, xtype, vsize, offset, dims, shape, i;
+                var name, nDims, dimid, attrs, xtype, vsize,
+                    offset, dims, shape, i, rec, readData;
                 name = this.binary.read('NcString');
                 nDims = this.binary.read('uint32');
                 dims = [];
@@ -343,6 +353,83 @@ define(['jbinary'], function (jBinary) {
                     }
                     return n;
                 };
+                rec = function () {
+                    return context.dims[dims[0]] === 0;
+                };
+                readData = function (start, count) {
+                    // start and count arguments are like the c interface for netcdf
+                    // when not present they default to start = [0,...,0] and count = shape()
+                    var shp, off, data, n, iDim, s, c, computeOffset, prod, sT, recSize, vName, v;
+                    sT = sizeMap(xtype);
+                    shp = shape();
+                    if (start === 'undefined') {
+                        start = [];
+                        for (i = 0; i <= nDims; i += 1) {
+                            start[i] = 0;
+                        }
+                    }
+                    if (count === 'undefined') {
+                        count = [];
+                        for (i = 0; i <= nDims; i += 1) {
+                            count[i] = shp[i];
+                        }
+                    }
+                    if (typeof start !== 'array' || typeof count !== 'array' ||
+                            start.length !== nDims   || count.length !== nDims) {
+                        throw new TypeError("Invalid arguments.");
+                    }
+
+                    // compute the record size (might move this to a file property)
+                    recSize = 0;
+                    for (vName in context.variables) {
+                        if (context.variables.hasOwnProperty(vName)) {
+                            v = context.variables[vName];
+                            if (v.rec()) {
+                                recSize += v._vsize;
+                            }
+                        }
+                    }
+
+                    // precompute product vector
+                    prod = [];
+                    prod[nDims - 1] = shp[nDims - 1];
+                    for (i = nDims - 2; i >= 0; i -= 1) {
+                        prod[i] = prod[i + 1] * shp[i];
+                    }
+                    if (rec()) {
+                        prod[0] = recSize;
+                    }
+                    computeOffset = function (s) {
+                        var j = 0;
+                        for (i = 0; i < nDims; i += 1) {
+                            j = j + s[i] * prod[i];
+                        }
+                        return j * sT + offset;
+                    };
+
+                    // get the number of elements needed
+                    n = count.reduce(function (x, y) {return x * y; });
+
+                    // allocate a data view
+                    data = new JDataView(sT *  n);
+
+                    // copy start array to avoid mutating the argument
+                    s = [];
+                    for (iDim = 0; iDim < nDims; iDim += 1) {
+                        s[iDim] = start[iDim];
+                    }
+
+                    // read contiguous blocks from the file in storage order
+                    c = count[nDims - 1] * sizeMap(xtype);
+                    for (iDim = nDims - 1; iDim > 0; iDim -= 1) {
+                        for (i = start[iDim]; i < start[iDim] + count[iDim]; i += 1) {
+                            s[iDim] = i;
+                            off = computeOffset(s);
+                            data.writeBytes(this.binary.getBytes(off, c));
+                        }
+                    }
+                    return data;
+                };
                 return {
                     name: name,
                     dimensions: dims,
@@ -350,7 +437,9 @@ define(['jbinary'], function (jBinary) {
                     dtype: xtype,
                     _vsize: vsize,
                     _offset: offset,
-                    shape: shape
+                    shape: shape,
+                    recordVariable: rec,
+                    readData: readData
                 };
             },
             write: function (data, context) {
